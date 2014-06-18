@@ -44,7 +44,7 @@ NetMQ.WebSockets example:
 
 and the javascript example, you can dowload the file from [JSMQ github page](https://github.com/somdoron/JSMQ).
 
-```javascript
+```html
 <html>
 	<script src="JSMQ.js" />	
 	<script>
