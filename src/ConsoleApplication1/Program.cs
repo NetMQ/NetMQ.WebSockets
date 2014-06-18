@@ -12,23 +12,28 @@ namespace ConsoleApplication1
   class Program
   {
     static void Main(string[] args)
-    {      
-      NetMQContext context = NetMQContext.Create();
-      WSRouter webSocketPublisher = new WSRouter(context);
-      webSocketPublisher.AutoSetRecipientAsSender = true;
-      webSocketPublisher.Bind(string.Format("tcp://localhost:{0}", args[0]));
-
-      while (true)
+    {
+      using (NetMQContext context = NetMQContext.Create())
       {
-        string message = webSocketPublisher.Receive();
-        Console.WriteLine(message);
+        using (WSRouter socket = new WSRouter(context))
+        {          
+          socket.Bind("tcp://localhost:80");
 
-        //Console.ReadLine();
-        
-        webSocketPublisher.Send("Hello back");                
-      }
+          while (true)
+          {
+            // in difference from NetMQ/ZeroMQ NetMQ.WebSockets doesn't support multipart messages, so the first frame is not the sender
+            // to retrieve the sender access the Sender property on the socket object
+            string message = socket.Receive();
+            Console.WriteLine(message);
             
-      Console.ReadLine();
+            // because multipart messages not supported, we have to set the recipient address
+            socket.Recipient = socket.Sender;
+            socket.Send("Response");
+          }
+
+          Console.ReadLine();
+        }
+      }
     }
   }
 }
