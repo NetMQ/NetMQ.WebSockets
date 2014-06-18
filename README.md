@@ -11,7 +11,7 @@ Currently only the router pattern is implemented and only bind is supported.
 
 So who can talk to this extension if we can only bind? [JSMQ](https://github.com/somdoron/JSMQ) is ZeroMQ/NetMQ client in javascript which can talk to this extension over WebSockets.
 
-To use NetMQ.WebSockets you need to download the source and compile, I promise to upload the library to nuget soon.
+To use NetMQ.WebSockets search it on [nuget](https://www.nuget.org/packages/NetMQ.WebSockets/) make sure to choose "Include Prerelease"
 
 This is very early beta and not ready for production use, but please use and give feedback, or even better send a pull request.
 
