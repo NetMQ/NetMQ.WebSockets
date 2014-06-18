@@ -42,7 +42,7 @@ NetMQ.WebSockets example:
 
 ```
 
-and the javascript example, you can dowload the file from [JSMQ github page](https://github.com/somdoron/JSMQ).
+and the javascript example, you can dowload the JSMQ.JS file from [JSMQ github page](https://github.com/somdoron/JSMQ).
 
 ```html
 <html>
