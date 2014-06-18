@@ -1,21 +1,25 @@
 NetMQ.WebSockets
 ====
 
-NetMQ WebSockets is an extension to NetMQ, implemeted using Stream socket type and give NetMQ like interface.
+NetMQ WebSockets is an extension to NetMQ, implemented using Stream socket type and providing a NetMQ like interface.
 
-NetMQ and ZeroMQ doesn't support pluggable transport, so the library provide its own socket object which is very similar to NetMQ socket.
+NetMQ and ZeroMQ don't support pluggable transport, therefore the library provides its own socket object which is very similar to the NetMQ socket object.
 
-Hopefully in the near future this will be integrated into NetMQ as another transport.
+Hopefully in the near future the library will be integrated into NetMQ as another transport.
 
-Currently only the router pattern is implemented and only bind is supported.
+Currently only the router pattern is implemented and you can only bind the socket.
 
-So who can talk to this extension if we can only bind? [JSMQ](https://github.com/somdoron/JSMQ) is ZeroMQ/NetMQ client in javascript which can talk to this extension over WebSockets.
+You are probably asking yourselves, "If I can only bind the socket, then how can one connect to the socket?"
+That's where [JSMQ](https://github.com/somdoron/JSMQ) comes into play. JSMQ is ZeroMQ/NetMQ javascript client which connect and talk to the NetMQ.WebSockets over WebSockets off course.
 
-To use NetMQ.WebSockets search it on [nuget](https://www.nuget.org/packages/NetMQ.WebSockets/) make sure to choose "Include Prerelease"
+To install NetMQ.WebSockets, search for it on [nuget](https://www.nuget.org/packages/NetMQ.WebSockets/) and make sure to choose "Include Prerelease".
 
-This is very early beta and not ready for production use, but please use and give feedback, or even better send a pull request.
 
-NetMQ.WebSockets example:
+To install JSMQ you can dowload the JSMQ.JS file from [JSMQ github page](https://github.com/somdoron/JSMQ) or from [nuget](https://www.nuget.org/packages/JSMQ/) as well, just search JSMQ.
+
+This is very early beta and not ready for production use, but don't let that stop you from trying it out, giving feedback, or even better sending a pull request.
+
+Without further adieu:
 
 ```csharp
       using (NetMQContext context = NetMQContext.Create())
@@ -41,8 +45,6 @@ NetMQ.WebSockets example:
         }
 
 ```
-
-and the javascript example, you can dowload the JSMQ.JS file from [JSMQ github page](https://github.com/somdoron/JSMQ) or from [nuget](https://www.nuget.org/packages/JSMQ/) as well, just search for JSMQ.
 
 ```html
 <html>
