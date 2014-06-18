@@ -1,7 +1,7 @@
 NetMQ.WebSockets
 ====
 
-NetMQ WebSockets is an extension to NetMQ, implemeted using Stream pattern and give NetMQ like interface.
+NetMQ WebSockets is an extension to NetMQ, implemeted using Stream socket type and give NetMQ like interface.
 
 NetMQ and ZeroMQ doesn't support pluggable transport, so the library provide it's own socket object which is very simalar to NetMQ socket.
 
