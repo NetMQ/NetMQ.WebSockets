@@ -3,7 +3,7 @@ NetMQ.WebSockets
 
 NetMQ WebSockets is an extension to NetMQ, implemeted using Stream socket type and give NetMQ like interface.
 
-NetMQ and ZeroMQ doesn't support pluggable transport, so the library provide its own socket object which is very simalar to NetMQ socket.
+NetMQ and ZeroMQ doesn't support pluggable transport, so the library provide its own socket object which is very similar to NetMQ socket.
 
 Hopefully in the near future this will be integrated into NetMQ as a transport.
 
