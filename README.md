@@ -50,15 +50,18 @@ and the javascript example, you can dowload the file from [JSMQ github page](htt
 	<script>
 		var dealer = new Dealer();		
 		
-		// send ready will be raised when at least when socket got connected, if you try to send a message before the event the message will be dropped
+		// send ready will be raised when at least when socket got connected, 
+		// if you try to send a message before the event the message will be dropped
 		// the event will raised again only if the send method return false.		
 		dealer.sendReady = function(socket)
 			{ 				
 				alert("ready to send");
 			};
 		
-		// receive ready will be raised when there is message ready to be received, trying to receive message before this event will get you a null message
-		// the event will be raised again only if you received null message, therefore every time the event is triggered you must conumse all the messages
+		// receive ready will be raised when there is message ready to be received, 
+		// trying to receive message before this event will get you a null message
+		// the event will be raised again only if you received null message, 
+		// therefore every time the event is triggered you must conumse all the messages
 		dealer.receiveReady = function(socket)
 		{		
 			var message = dealer.receive();
