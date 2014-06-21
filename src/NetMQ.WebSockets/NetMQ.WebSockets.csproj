@@ -43,11 +43,15 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="BaseSocket.cs" />
+    <Compile Include="ContextExtensions.cs" />
+    <Compile Include="Mtrie.cs" />
+    <Compile Include="PollerExtensions.cs" />
+    <Compile Include="WSPublisher.cs" />
+    <Compile Include="WSSocket.cs" />
     <Compile Include="Decoder.cs" />
     <Compile Include="Message.cs" />
     <Compile Include="WebSocketClient.cs" />
-    <Compile Include="Router.cs" />
+    <Compile Include="WSRouter.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>
