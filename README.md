@@ -22,36 +22,36 @@ This is early beta and not ready for production use, but don't let that stop you
 Without further adieu:
 
 ```csharp
-      using (NetMQContext context = NetMQContext.Create())
-            {
-                using (WSRouter router = context.CreateWSRouter())
-                using (WSPublisher publisher = context.CreateWSPublisher())
-                {
-                    router.Bind("ws://localhost:80");                    
-                    publisher.Bind("ws://localhost:81");
+using (NetMQContext context = NetMQContext.Create())
+      {
+          using (WSRouter router = context.CreateWSRouter())
+          using (WSPublisher publisher = context.CreateWSPublisher())
+          {
+              router.Bind("ws://localhost:80");                    
+              publisher.Bind("ws://localhost:81");
 
-                    router.ReceiveReady += (sender, eventArgs) =>
-                    {
-                        string identity = eventArgs.WSSocket.Receive();
-                        string message = eventArgs.WSSocket.Receive();
+              router.ReceiveReady += (sender, eventArgs) =>
+              {
+                  string identity = eventArgs.WSSocket.Receive();
+                  string message = eventArgs.WSSocket.Receive();
 
-                        eventArgs.WSSocket.SendMore(identity).Send("OK");
+                  eventArgs.WSSocket.SendMore(identity).Send("OK");
 
-                        eventArgs.WSSocket.SendMore("chat").Send(message);
-                    };
-                        
-                    Poller poller = new Poller();
-                    poller.AddWSSocket(router);
+                  eventArgs.WSSocket.SendMore("chat").Send(message);
+              };
+                  
+              Poller poller = new Poller();
+              poller.AddWSSocket(router);
 
-                    // we must add the publisher to the poller although we are not registering to any event.
-                    // the protocol processing is happening in the user thread, without adding the publisher to the poller
-                    // the next time the publisher will accept a socket or receive a subscription is only when send is called.
-                    // when socket is added to the poller the processing is happen everytime data is ready to be processed
-                    poller.AddWSSocket(publisher);
-                    poller.Start();
+              // we must add the publisher to the poller although we are not registering to any event.
+              // the protocol processing is happening in the user thread, without adding the publisher to the poller
+              // the next time the publisher will accept a socket or receive a subscription is only when send is called.
+              // when socket is added to the poller the processing is happen everytime data is ready to be processed
+              poller.AddWSSocket(publisher);
+              poller.Start();
 
-                }
-            }
+          }
+      }
 ```
 
 For JSMQ example please visit the [JSMQ github page](https://github.com/somdoron/JSMQ).
