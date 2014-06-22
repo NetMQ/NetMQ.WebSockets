@@ -19,7 +19,7 @@ To install JSMQ you can dowload the JSMQ.JS file from [JSMQ github page](https:/
 
 This is early beta and not ready for production use, but don't let that stop you from trying it out, giving feedback, or even better sending a pull request.
 
-Without further adieu:
+Without further adieu, following is a small chat example:
 
 ```csharp
 using (NetMQContext context = NetMQContext.Create())
@@ -35,8 +35,10 @@ using (NetMQContext context = NetMQContext.Create())
             string identity = eventArgs.WSSocket.Receive();
             string message = eventArgs.WSSocket.Receive();
 
+            // let the webbrowser know we got the message
             eventArgs.WSSocket.SendMore(identity).Send("OK");
 
+            // the topic for the chat chat
             eventArgs.WSSocket.SendMore("chat").Send(message);
         };
             
