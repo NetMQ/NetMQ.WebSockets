@@ -38,7 +38,7 @@ using (NetMQContext context = NetMQContext.Create())
             // let the webbrowser know we got the message
             eventArgs.WSSocket.SendMore(identity).Send("OK");
 
-            // the topic for the chat chat
+            // the topic is "chat" and than we send the message
             eventArgs.WSSocket.SendMore("chat").Send(message);
         };
             
