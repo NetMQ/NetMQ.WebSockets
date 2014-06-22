@@ -10,17 +10,7 @@ using NetMQ.Sockets;
 using NetMQ.zmq;
 
 namespace NetMQ.WebSockets
-{
-    class WebSocketClientEventArgs : EventArgs
-    {
-        public WebSocketClientEventArgs(WebSocketClient webSocketClient)
-        {
-            WebSocketClient = webSocketClient;
-        }
-
-        public WebSocketClient WebSocketClient { get; private set; }
-    }
-
+{    
     enum WebSocketClientState
     {
         Closed, Handshake, Ready
@@ -42,9 +32,7 @@ namespace NetMQ.WebSockets
             m_incomingMessageQueue = incomingMessageQueue;
 
             Identity = identity;
-        }
-
-        public event EventHandler<WebSocketClientEventArgs> WebSocketClosed;
+        }        
 
         public Blob Identity { get; private set; }
 
@@ -58,6 +46,7 @@ namespace NetMQ.WebSockets
             switch (m_state)
             {
                 case WebSocketClientState.Closed:
+                    m_state = WebSocketClientState.Handshake;
                     string clientHandshake = m_streamSocket.ReceiveString();
 
                     string[] lines = clientHandshake.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
@@ -70,7 +59,7 @@ namespace NetMQ.WebSockets
 
                         try
                         {
-                            m_streamSocket.Send(Identity.Data, Identity.Data.Length, true, true);
+                            m_streamSocket.SendMore(Identity.Data, Identity.Data.Length, true);
                             m_streamSocket.Send("HTTP/1.1 101 Switching Protocols\r\n" +
                                                 "Upgrade: websocket\r\n" +
                                                 "Connection: Upgrade\r\n" +
@@ -89,13 +78,15 @@ namespace NetMQ.WebSockets
                     }
                     else
                     {
-                        m_streamSocket.Send(Identity.Data, Identity.Data.Length, true, true);
-                        m_streamSocket.Send("HTTP/1.1 400 Bad Request\r\nSec-WebSocket-Version: 13\r\n");
-
+                        m_state = WebSocketClientState.Closed;
+                       
                         try
                         {
+                            m_streamSocket.SendMore(Identity.Data, Identity.Data.Length, true);
+                            m_streamSocket.Send("HTTP/1.1 400 Bad Request\r\nSec-WebSocket-Version: 13\r\n");
+
                             // invalid request, close the socket and raise closed event
-                            m_streamSocket.Send(Identity.Data, Identity.Data.Length, true, true);
+                            m_streamSocket.SendMore(Identity.Data, Identity.Data.Length, true);
                             m_streamSocket.Send("");
                         }
                         catch (NetMQException ex)
@@ -119,13 +110,31 @@ namespace NetMQ.WebSockets
             if (e.Opcode == OpcodeEnum.Close)
             {
                 // send close command to the socket
-                m_streamSocket.Send(Identity.Data, Identity.Size, true, true);
-                m_streamSocket.Send("");
+
+                try
+                {
+                    m_streamSocket.SendMore(Identity.Data, Identity.Size, true);
+                    m_streamSocket.Send("");
+                }
+                catch (NetMQException)
+                {                                        
+                }
+                
                 m_state = WebSocketClientState.Closed;
             }
-            else
+            else if (e.Opcode == OpcodeEnum.Text)
             {
                 m_incomingMessageQueue.Enqueue(new Message(Identity.Data, e.Payload, e.More));
+            }
+            else if (e.Opcode == OpcodeEnum.Ping)
+            {
+                byte[] pong = new byte[2 + e.Payload.Length];
+                pong[0] = 0x8A; // Pong and Final
+                pong[1] = (byte)(e.Payload.Length & 127);
+                Buffer.BlockCopy(e.Payload, 0, pong, 2, e.Payload.Length);
+
+                m_streamSocket.SendMore(Identity.Data, Identity.Size, true);
+                m_streamSocket.Send(pong);
             }
         }
 
@@ -141,17 +150,17 @@ namespace NetMQ.WebSockets
                 return false;
 
             // look for upgrade command
-            if (!lines.Any(l => l.Trim().Equals("Upgrade: websocket")))
+            if (!lines.Any(l => l.Trim().Equals("Upgrade: websocket", StringComparison.OrdinalIgnoreCase)))
                 return false;
 
-            if (!lines.Any(l => l.Trim().Equals("Connection: Upgrade")))
+            if (!lines.Any(l => l.Trim().Equals("Connection: Upgrade", StringComparison.OrdinalIgnoreCase)))
                 return false;
 
-            if (!lines.Any(l => l.Trim().Equals("Sec-WebSocket-Version: 13")))
+            if (!lines.Any(l => l.Trim().Equals("Sec-WebSocket-Version: 13", StringComparison.OrdinalIgnoreCase)))
                 return false;
 
             // look for websocket key
-            string keyLine = lines.FirstOrDefault(l => l.StartsWith("Sec-WebSocket-Key:"));
+            string keyLine = lines.FirstOrDefault(l => l.StartsWith("Sec-WebSocket-Key:", StringComparison.OrdinalIgnoreCase));
 
             if (string.IsNullOrEmpty(keyLine))
                 return false;
@@ -230,7 +239,7 @@ namespace NetMQ.WebSockets
                 m_state = WebSocketClientState.Closed;
                 throw exception;
             }
-        }
+        }       
 
         public void Close()
         {

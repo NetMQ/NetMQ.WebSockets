@@ -80,10 +80,17 @@ namespace NetMQ.WebSockets
                         if (m_isMaksed)
                         {
                             for (int j = m_payloadIndex; j < m_payloadIndex + bytesToRead; j++)
-                            {
-                                // because the first byte is the more bit we always add + 1 to the index 
-                                // when retrieving the mask byte
-                                m_payload[j] = (byte)(m_payload[j] ^ m_mask[(j+1) % 4]);
+                            {                                
+                                if (m_opcode == OpcodeEnum.Text)
+                                {
+                                    // because the first byte is the more bit we always add + 1 to the index 
+                                    // when retrieving the mask byte
+                                    m_payload[j] = (byte)(m_payload[j] ^ m_mask[(j + 1) % 4]);    
+                                }
+                                else
+                                {
+                                    m_payload[j] = (byte)(m_payload[j] ^ m_mask[(j) % 4]);    
+                                }                                
                             }
                         }
 
@@ -114,6 +121,22 @@ namespace NetMQ.WebSockets
             }
         }
 
+        State NextState()
+        {
+            if ((m_state == State.LongSize8 || m_state == State.SecondByte || m_state == State.ShortSize2) && m_isMaksed)
+            {
+                return State.Mask;
+            }
+            else if (m_opcode == OpcodeEnum.Text)
+            {
+                return State.MoreByte;
+            }
+            else
+            {
+                return State.Payload;
+            }
+        }
+
         void Process(byte b)
         {
             switch (m_state)
@@ -130,7 +153,7 @@ namespace NetMQ.WebSockets
                     if (length < 126)
                     {
                         m_payloadLength = length;
-                        m_state = m_isMaksed ? State.Mask : State.MoreByte;
+                        m_state = NextState();
                     }
                     else if (length == 126)
                     {
@@ -155,7 +178,7 @@ namespace NetMQ.WebSockets
                     break;
                 case State.Mask4:
                     m_mask[3] = b;
-                    m_state = State.MoreByte;
+                    m_state = NextState();
                     break;
                 case State.ShortSize:
                     m_payloadLength = b << 8;
@@ -163,7 +186,7 @@ namespace NetMQ.WebSockets
                     break;
                 case State.ShortSize2:
                     m_payloadLength |= b;
-                    m_state = m_isMaksed ? State.Mask : State.MoreByte;
+                    m_state = NextState();
                     break;
                 case State.LongSize:
                     m_payloadLength = 0;
@@ -201,10 +224,10 @@ namespace NetMQ.WebSockets
                     break;
                 case State.LongSize8:
                     m_payloadLength |= b;
-                    m_state = m_isMaksed ? State.Mask : State.MoreByte;
+                    m_state = NextState();
                     break;
                 case State.MoreByte:
-                    // The first byte of the payload is the more bit
+                    // The first byte of the payload is the more bit                  
 
                     if (m_isMaksed)
                     {
@@ -216,8 +239,8 @@ namespace NetMQ.WebSockets
                     }
 
                     m_payloadLength--;
-                                                           
-                    m_state = State.Payload;                    
+
+                    m_state = State.Payload;
                     break;
             }
         }

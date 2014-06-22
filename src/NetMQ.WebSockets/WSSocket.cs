@@ -70,9 +70,19 @@ namespace NetMQ.WebSockets
             }
         }
 
+        /// <summary>
+        /// Fired when a new message is ready to be received
+        /// </summary>
         public event EventHandler<WSSocketEventArgs> ReceiveReady;
+
+        /// <summary>
+        /// Fired when the socket is ready to send a message
+        /// </summary>
         public event EventHandler<WSSocketEventArgs> SendReady;
 
+        /// <summary>
+        /// True if message is part of multi-part message and not the last frame
+        /// </summary>
         public bool More { get; private set; }
 
         protected virtual void Process(bool untilMessageAvailable)
@@ -96,7 +106,7 @@ namespace NetMQ.WebSockets
                 }
 
                 // process messages until again exception arrived
-                // TODO: expose the events options from netmq options to avoid the exception
+                // TODO: expose the events options from netmq options to avoid the exception                
                 while (true)
                 {
                     bool more;

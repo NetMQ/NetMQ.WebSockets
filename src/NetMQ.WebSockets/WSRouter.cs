@@ -11,26 +11,28 @@ namespace NetMQ.WebSockets
     {
         private int m_clientCounter;
 
-        private bool m_outMore = false;
-        private bool m_inMore = false;
+        private bool m_outMore;
+        private bool m_inMore;
+        private bool m_identityMessage;
 
-        private bool m_firstFrame = false;
-
-        private byte[] m_destinationBlob;
-
-        private byte[] m_prefetched ;
+        private byte[] m_sendIdentity;
+        private byte[] m_prefetched;
 
         internal WSRouter(NetMQContext context)
             : base(context)
         {
+            m_outMore = false;
+            m_inMore = false;
 
+            m_identityMessage = false;
         }
 
         protected override string BytesToString(byte[] data)
         {
             // first frame is the identity and should be encoded with ASCII
-            if (m_firstFrame)
+            if (m_identityMessage)
             {
+                m_identityMessage = false; 
                 return Encoding.ASCII.GetString(data);
             }
 
@@ -52,20 +54,18 @@ namespace NetMQ.WebSockets
         {
             if (!m_outMore)
             {
-                m_destinationBlob = message;
+                m_sendIdentity = message;
             }
             else
             {
-                WriteMessage(m_destinationBlob, message, dontWait, more);    
+                WriteMessage(m_sendIdentity, message, dontWait, more);    
             }
 
             m_outMore = more;
         }
 
         protected internal override bool XReceive(out byte[] message, out bool more)
-        {
-            m_firstFrame = false; 
-
+        {            
             if (m_prefetched != null)
             {
                 more = m_inMore;
@@ -86,7 +86,9 @@ namespace NetMQ.WebSockets
                     message = identity;
                     m_inMore = more;
                     more = true;
-                    m_firstFrame = true;
+
+                    // let the BytesToString know that the message is identity and should encode as ASCII
+                    m_identityMessage = true;
                     return true;
                 }
 
