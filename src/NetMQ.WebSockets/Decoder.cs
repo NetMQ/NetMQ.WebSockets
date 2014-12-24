@@ -11,7 +11,7 @@ namespace NetMQ.WebSockets
 {
     enum OpcodeEnum : byte
     {
-        Continuation = 0, Text = 0x01, Binary = 0x03, Close = 0x08, Ping = 0x09, Pong = 0xA
+        Continuation = 0, Text = 0x01, Binary = 0x02, Close = 0x08, Ping = 0x09, Pong = 0xA
     }
 
     class MessageEventArgs : EventArgs
@@ -81,7 +81,7 @@ namespace NetMQ.WebSockets
                         {
                             for (int j = m_payloadIndex; j < m_payloadIndex + bytesToRead; j++)
                             {                                
-                                if (m_opcode == OpcodeEnum.Text)
+                                if (m_opcode == OpcodeEnum.Binary)
                                 {
                                     // because the first byte is the more bit we always add + 1 to the index 
                                     // when retrieving the mask byte
@@ -127,7 +127,7 @@ namespace NetMQ.WebSockets
             {
                 return State.Mask;
             }
-            else if (m_opcode == OpcodeEnum.Text)
+            else if (m_opcode == OpcodeEnum.Binary)
             {
                 return State.MoreByte;
             }
@@ -144,7 +144,7 @@ namespace NetMQ.WebSockets
                 case State.NewMessage:
                     m_final = (b & FinalBit) != 0;
                     m_opcode = (OpcodeEnum)(b & 0xF);
-                    m_state = State.SecondByte;
+                    m_state = State.SecondByte;                   
                     break;
                 case State.SecondByte:
                     m_isMaksed = (b & MaskedBit) != 0;
@@ -231,11 +231,11 @@ namespace NetMQ.WebSockets
 
                     if (m_isMaksed)
                     {
-                        m_more = (b ^ m_mask[0]) == '1';
+                        m_more = (b ^ m_mask[0]) == 1;
                     }
                     else
                     {
-                        m_more = b == '1';
+                        m_more = b == 1;
                     }
 
                     m_payloadLength--;

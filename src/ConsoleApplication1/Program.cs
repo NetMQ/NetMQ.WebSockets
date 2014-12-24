@@ -23,8 +23,8 @@ namespace ConsoleApplication1
 
                     router.ReceiveReady += (sender, eventArgs) =>
                     {
-                        string identity = router.Receive();
-                        string message = router.Receive();
+                        string identity = router.ReceiveString();
+                        string message = router.ReceiveString();
 
                         router.SendMore(identity).Send("OK");
 
@@ -32,11 +32,11 @@ namespace ConsoleApplication1
                     };
                         
                     Poller poller = new Poller();
-                    poller.AddWSSocket(router);
+                    poller.AddSocket(router);
 
                     // we must add the publisher to the poller although we are not registering to any event.
                     // The internal stream socket handle connections and subscriptions and use the events internally
-                    poller.AddWSSocket(publisher);
+                    poller.AddSocket(publisher);
                     poller.Start();
 
                 }

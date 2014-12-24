@@ -3,16 +3,15 @@ using System.Collections.Generic;
 using System.Data.Odbc;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
+using NetMQ.Actors;
+using NetMQ.InProcActors;
+using NetMQ.Sockets;
 using NetMQ.zmq;
 
 namespace NetMQ.WebSockets
 {
-    public enum WriteResult
-    {
-        OK, Again, HostUnreachable
-    }
-
     public class WSSocketEventArgs : EventArgs
     {
         public WSSocketEventArgs(WSSocket wsSocket)
@@ -24,296 +23,77 @@ namespace NetMQ.WebSockets
         public WSSocket WSSocket { get; private set; }
     }
 
-    public abstract class WSSocket : IDisposable
+    public class WSSocket : IDisposable, IOutgoingSocket, IReceivingSocket, ISocketPollable
     {
+        private static int s_id = 0;
+
         private readonly NetMQContext m_context;
-        private Dictionary<Blob, WebSocketClient> m_clients;
-        private Queue<Message> m_incomingMessagesQueue;
-        private Queue<Blob> m_clientTerminated;
 
-        private NetMQSocket m_streamSocket;        
+        internal const string BindCommand = "BIND";
 
-        public WSSocket(NetMQContext context)
+        private Actor<int> m_actor;
+        private PairSocket m_messagesPipe;        
+
+        protected WSSocket(NetMQContext context, IShimHandler<int> shimHandler )
         {
+            int id = Interlocked.Increment(ref s_id);
             m_context = context;
-            m_clients = new Dictionary<Blob, WebSocketClient>();
-            m_clientTerminated = new Queue<Blob>();
-            m_incomingMessagesQueue = new Queue<Message>();
 
-            m_streamSocket = m_context.CreateStreamSocket();
-            m_streamSocket.ReceiveReady += OnReceiveReady;
-            m_streamSocket.SendReady += OnSendReady;
-        }        
+            m_messagesPipe = context.CreatePairSocket();
+            m_messagesPipe.Bind(string.Format("inproc://wsrouter-{0}", id));
 
-        protected internal abstract void XSend(byte[] message, bool dontWait, bool more);
-        protected internal abstract bool XReceive(out byte[] message, out bool more);
+            m_messagesPipe.ReceiveReady += OnMessagePipeReceiveReady;
 
-        protected internal abstract bool XHasIn();
-        protected internal abstract bool XHasOut();
+            m_actor = new Actor<int>(context, shimHandler, id);
 
-        protected internal abstract void AttachClient(Blob identity);
-        protected internal abstract void ClientTerminated(Blob identity);
+            m_messagesPipe.WaitForSignal();
+        }
 
-        internal NetMQSocket Socket
+        private void OnMessagePipeReceiveReady(object sender, NetMQSocketEventArgs e)
         {
-            get
+            var temp = ReceiveReady;
+            if (temp != null)
             {
-                return m_streamSocket;
+                temp(this, new WSSocketEventArgs(this));
             }
         }
 
-        protected bool IsMessageQueueEmpty
+        public EventHandler<WSSocketEventArgs> ReceiveReady;        
+
+        NetMQSocket ISocketPollable.Socket
         {
-            get
-            {
-                return m_incomingMessagesQueue.Count == 0;
-            }
-        }
-
-        /// <summary>
-        /// Fired when a new message is ready to be received
-        /// </summary>
-        public event EventHandler<WSSocketEventArgs> ReceiveReady;
-
-        /// <summary>
-        /// Fired when the socket is ready to send a message
-        /// </summary>
-        public event EventHandler<WSSocketEventArgs> SendReady;
-
-        /// <summary>
-        /// True if message is part of multi-part message and not the last frame
-        /// </summary>
-        public bool More { get; private set; }
-
-        protected virtual void Process(bool untilMessageAvailable)
-        {
-            try
-            {
-                // when client get terminated during send operation the terimated method will get called when processed next
-                while (m_clientTerminated.Count != 0)
-                {
-                    var clientIdentity = m_clientTerminated.Dequeue();
-
-                    WebSocketClient client;
-
-                    if (m_clients.TryGetValue(clientIdentity, out client))
-                    {
-                        client.Dispose();
-
-                        m_clients.Remove(clientIdentity);
-                        ClientTerminated(clientIdentity);
-                    }
-                }
-
-                // process messages until again exception arrived
-                // TODO: expose the events options from netmq options to avoid the exception                
-                while (true)
-                {
-                    bool more;
-
-                    // we only wait if we asked to process until message available and message still not available
-                    bool shouldWait = untilMessageAvailable && m_incomingMessagesQueue.Count == 0;
-
-                    Blob identity =
-                        new Blob(m_streamSocket.Receive(shouldWait ? SendReceiveOptions.None : SendReceiveOptions.DontWait));
-
-                    WebSocketClient client;
-                    if (!m_clients.TryGetValue(identity, out client))
-                    {
-                        client = new WebSocketClient(m_streamSocket, m_incomingMessagesQueue, identity);
-                        m_clients.Add(identity, client);
-                    }
-
-                    var stateBefore = client.State;
-
-                    // tell the client data is waiting to be processed
-                    client.OnDataReady();
-
-                    if (client.State == WebSocketClientState.Ready && stateBefore != client.State)
-                    {
-                        AttachClient(client.Identity);
-                    }
-                    else if (client.State == WebSocketClientState.Closed)
-                    {
-                        m_clients.Remove(client.Identity);
-
-                        if (stateBefore == WebSocketClientState.Ready)
-                        {
-                            ClientTerminated(client.Identity);
-                        }
-
-                        client.Dispose();
-                    }
-                }
-            }
-            catch (AgainException ex)
-            {
-                // just ignore
-            }
+            get { return m_messagesPipe; }
         }
 
         public void Bind(string address)
-        {         
-            if (!address.StartsWith("ws://"))
-                throw new NotSupportedException("only WS scheme is supported");
-
-            m_streamSocket.Bind(address.Replace("ws://", "tcp://"));
-
-            Process(false);
-        }
-
-        protected virtual byte[] StringToBytes(string data)
         {
-            return Encoding.UTF8.GetBytes(data);
-        }
+            m_actor.SendMore(BindCommand).Send(address);
 
-        protected virtual string BytesToString(byte[] data)
-        {
-            return Encoding.UTF8.GetString(data);
-        }
+            byte[] bytes = m_actor.Receive();
+            int errorCode = BitConverter.ToInt32(bytes, 0);
 
-        public WSSocket SendMore(string message, bool dontWait = false)
-        {
-            Send(message, dontWait, true);
-            return this;
-        }
-
-        public void Send(string message, bool dontWait = false, bool more = false)
-        {
-            Process(false);
-
-            byte[] messageBytes = StringToBytes(message);
-
-            XSend(messageBytes, dontWait, more);
-        }
-
-        public string Receive(bool dontWait = false)
-        {
-            bool waitUntilMessage = !dontWait;
-
-            if (XHasIn())
+            if (errorCode != 0)
             {
-                waitUntilMessage = false;
-            }
-
-            Process(waitUntilMessage);
-
-            byte[] messageBytes;
-            bool more;
-
-            if (XReceive(out messageBytes, out more))
-            {
-                More = more;
-                return BytesToString(messageBytes);
-            }
-            else
-            {
-                More = false;
-                throw AgainException.Create();
+                throw NetMQException.Create((ErrorCode)errorCode);
             }
         }
 
-        public bool HasIn()
+        public void Send(ref Msg msg, SendReceiveOptions options)
         {
-            Process(false);
-
-            return XHasIn();
+            m_messagesPipe.Send(ref msg, options);
         }
 
-        public bool HasOut()
+        public void Receive(ref Msg msg, SendReceiveOptions options)
         {
-            Process(false);
-
-            return XHasOut();
+            m_messagesPipe.Receive(ref msg, options);
         }
 
-        protected WriteResult WriteMessage(byte[] identity, byte[] message, bool dontWait, bool more)
+        public void Dispose()
         {
-            WebSocketClient client;
+            m_actor.Dispose();
 
-            if (m_clients.TryGetValue(new Blob(identity), out client))
-            {
-                // if client is not active we don't try to send the message
-                if (client.State == WebSocketClientState.Ready)
-                {
-                    try
-                    {
-                        bool isMessageSent = client.Send(message, dontWait, more);
-
-                        if (client.State == WebSocketClientState.Closed)
-                        {
-                            m_clientTerminated.Enqueue(client.Identity);
-                        }
-
-                        return isMessageSent ? WriteResult.OK : WriteResult.Again;
-                    }
-                    catch (NetMQException ex)
-                    {
-                        return WriteResult.HostUnreachable;
-                    }
-                }
-            }
-
-            return WriteResult.HostUnreachable;
-        }
-
-        protected bool ReadMessage(out byte[] identity, out byte[] data, out bool more)
-        {
-            if (m_incomingMessagesQueue.Count > 0)
-            {
-                Message message = m_incomingMessagesQueue.Dequeue();
-
-                identity = message.Source;
-                data = message.Data;
-                more = message.More;
-
-                return true;
-            }
-            else
-            {
-                identity = null;
-                data = null;
-                more = false;
-
-                return false;
-            }
-        }
-
-        private void OnReceiveReady(object sender, NetMQSocketEventArgs e)
-        {
-            if (HasIn())
-            {
-                if (ReceiveReady != null)
-                {
-                    ReceiveReady(this, new WSSocketEventArgs(this));
-                }    
-            }            
-        }
-
-        private void OnSendReady(object sender, NetMQSocketEventArgs e)
-        {
-            if (HasOut())
-            {
-                if (SendReady != null)
-                {
-                    SendReady(this, new WSSocketEventArgs(this));
-                }
-            }      
-        }
-
-        public virtual void Dispose()
-        {
-            Process(false);
-
-            foreach (var webSocketClient in m_clients.Values)
-            {
-                webSocketClient.Close();
-                webSocketClient.Dispose();
-            }
-
-            m_streamSocket.ReceiveReady -= OnReceiveReady;
-            m_streamSocket.SendReady -= OnSendReady;
-            m_streamSocket.Dispose();
+            m_messagesPipe.Options.Linger = TimeSpan.Zero;
+            m_messagesPipe.Dispose();
         }
     }
 }

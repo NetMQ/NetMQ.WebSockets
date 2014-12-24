@@ -32,7 +32,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="NetMQ">
-      <HintPath>..\packages\NetMQ.3.3.0.10\lib\net40\NetMQ.dll</HintPath>
+      <HintPath>..\packages\NetMQ.3.3.0.11\lib\net40\NetMQ.dll</HintPath>
     </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />
@@ -43,9 +43,10 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="BaseShimHandler.cs" />
+    <Compile Include="ByteArrayEqualityComparer.cs" />
     <Compile Include="ContextExtensions.cs" />
     <Compile Include="Mtrie.cs" />
-    <Compile Include="PollerExtensions.cs" />
     <Compile Include="WSPublisher.cs" />
     <Compile Include="WSSocket.cs" />
     <Compile Include="Decoder.cs" />

@@ -9,14 +9,14 @@ namespace NetMQ.WebSockets
 {
     class Mtrie
     {
-        private HashSet<Blob> m_pipes;
+        private HashSet<byte[]> m_pipes;
 
         private int m_min;
         private int m_count;
         private int m_liveNodes;
         private Mtrie[] m_next;
 
-        public delegate void MtrieDelegate(Blob pipe, byte[] data, Object arg);
+        public delegate void MtrieDelegate(byte[] pipe, byte[] data, Object arg);
 
         public Mtrie()
         {
@@ -28,27 +28,26 @@ namespace NetMQ.WebSockets
             m_next = null;
         }
 
-        public bool Add(byte[] prefix, Blob pipe)
+        public bool Add(byte[] prefix, byte[] pipe)
         {
             return AddHelper(prefix, 0, pipe);
         }
 
         //  Add key to the trie. Returns true if it's a new subscription
         //  rather than a duplicate.
-        public bool Add(byte[] prefix, int start, Blob pipe)
+        public bool Add(byte[] prefix, int start, byte[] pipe)
         {
             return AddHelper(prefix, start, pipe);
         }
 
-
-        private bool AddHelper(byte[] prefix, int start, Blob pipe)
+        private bool AddHelper(byte[] prefix, int start, byte[] pipe)
         {
             //  We are at the node corresponding to the prefix. We are done.
             if (prefix == null || prefix.Length == start)
             {
                 bool result = m_pipes == null;
                 if (m_pipes == null)
-                    m_pipes = new HashSet<Blob>();
+                    m_pipes = new HashSet<byte[]>(new ByteArrayEqualityComparer());
                 m_pipes.Add(pipe);
                 return result;
             }
@@ -123,12 +122,12 @@ namespace NetMQ.WebSockets
         //  Remove all subscriptions for a specific peer from the trie.
         //  If there are no subscriptions left on some topics, invoke the
         //  supplied callback function.
-        public bool RemoveHelper(Blob pipe, MtrieDelegate func, Object arg)
+        public bool RemoveHelper(byte[] pipe, MtrieDelegate func, Object arg)
         {
             return RemoveHelper(pipe, new byte[0], 0, 0, func, arg);
         }
 
-        private bool RemoveHelper(Blob pipe, byte[] buff, int buffsize, int maxbuffsize,
+        private bool RemoveHelper(byte[] pipe, byte[] buff, int buffsize, int maxbuffsize,
                                MtrieDelegate func, Object arg)
         {
 
@@ -252,13 +251,13 @@ namespace NetMQ.WebSockets
 
         //  Remove specific subscription from the trie. Return true is it was
         //  actually removed rather than de-duplicated.
-        public bool Remove(byte[] prefix, int start, Blob pipe)
+        public bool Remove(byte[] prefix, int start, byte[] pipe)
         {
             return RemovemHelper(prefix, start, pipe);
         }
 
 
-        private bool RemovemHelper(byte[] prefix, int start, Blob pipe)
+        private bool RemovemHelper(byte[] prefix, int start, byte[] pipe)
         {
             if (prefix == null || prefix.Length == start)
             {
@@ -375,7 +374,7 @@ namespace NetMQ.WebSockets
                 //  Signal the pipes attached to this node.
                 if (current.m_pipes != null)
                 {
-                    foreach (Blob it in current.m_pipes)
+                    foreach (byte[] it in current.m_pipes)
                         func(it, null, arg);
                 }
 

@@ -10,10 +10,22 @@ using NetMQ.Sockets;
 using NetMQ.zmq;
 
 namespace NetMQ.WebSockets
-{    
+{
     enum WebSocketClientState
     {
         Closed, Handshake, Ready
+    }
+
+    class NetMQMessageEventArgs : EventArgs
+    {
+        public NetMQMessageEventArgs(byte[] identity, NetMQMessage message)
+        {
+            Identity = identity;
+            Message = message;
+        }
+
+        public byte[] Identity { get; private set; }
+        public NetMQMessage Message { get; private set; }
     }
 
     class WebSocketClient : IDisposable
@@ -23,23 +35,26 @@ namespace NetMQ.WebSockets
 
         private Decoder m_decoder;
         private readonly NetMQSocket m_streamSocket;
-        private readonly Queue<Message> m_incomingMessageQueue;
 
-        internal WebSocketClient(NetMQSocket streamSocket, Queue<Message> incomingMessageQueue, Blob identity)
+        private NetMQMessage m_outgoingMessage;
+
+        internal WebSocketClient(NetMQSocket streamSocket, byte[] identity)
         {
             m_state = WebSocketClientState.Closed;
             m_streamSocket = streamSocket;
-            m_incomingMessageQueue = incomingMessageQueue;
+            m_outgoingMessage = null;
 
             Identity = identity;
-        }        
+        }
 
-        public Blob Identity { get; private set; }
+        public byte[] Identity { get; private set; }
 
         public WebSocketClientState State
         {
             get { return m_state; }
         }
+
+        public event EventHandler<NetMQMessageEventArgs> IncomingMessage;
 
         public void OnDataReady()
         {
@@ -59,7 +74,7 @@ namespace NetMQ.WebSockets
 
                         try
                         {
-                            m_streamSocket.SendMore(Identity.Data, Identity.Data.Length, true);
+                            m_streamSocket.SendMore(Identity, Identity.Length, true);
                             m_streamSocket.Send("HTTP/1.1 101 Switching Protocols\r\n" +
                                                 "Upgrade: websocket\r\n" +
                                                 "Connection: Upgrade\r\n" +
@@ -69,7 +84,6 @@ namespace NetMQ.WebSockets
                             m_decoder = new Decoder();
                             m_decoder.Message += OnMessage;
                             m_state = WebSocketClientState.Ready;
-
                         }
                         catch (NetMQException)
                         {
@@ -79,14 +93,14 @@ namespace NetMQ.WebSockets
                     else
                     {
                         m_state = WebSocketClientState.Closed;
-                       
+
                         try
                         {
-                            m_streamSocket.SendMore(Identity.Data, Identity.Data.Length, true);
+                            m_streamSocket.SendMore(Identity, Identity.Length, true);
                             m_streamSocket.Send("HTTP/1.1 400 Bad Request\r\nSec-WebSocket-Version: 13\r\n");
 
                             // invalid request, close the socket and raise closed event
-                            m_streamSocket.SendMore(Identity.Data, Identity.Data.Length, true);
+                            m_streamSocket.SendMore(Identity, Identity.Length, true);
                             m_streamSocket.Send("");
                         }
                         catch (NetMQException ex)
@@ -110,21 +124,34 @@ namespace NetMQ.WebSockets
             if (e.Opcode == OpcodeEnum.Close)
             {
                 // send close command to the socket
-
                 try
                 {
-                    m_streamSocket.SendMore(Identity.Data, Identity.Size, true);
+                    m_streamSocket.SendMore(Identity, Identity.Length, true);
                     m_streamSocket.Send("");
                 }
                 catch (NetMQException)
-                {                                        
+                {
                 }
-                
+
                 m_state = WebSocketClientState.Closed;
             }
-            else if (e.Opcode == OpcodeEnum.Text)
+            else if (e.Opcode == OpcodeEnum.Binary)
             {
-                m_incomingMessageQueue.Enqueue(new Message(Identity.Data, e.Payload, e.More));
+                if (m_outgoingMessage == null)
+                {
+                    m_outgoingMessage = new NetMQMessage();
+                }
+
+                m_outgoingMessage.Append(e.Payload);
+
+                if (!e.More)
+                {
+                    if (IncomingMessage != null)
+                    {
+                        IncomingMessage(this, new NetMQMessageEventArgs(Identity, m_outgoingMessage));
+                    }
+                    m_outgoingMessage = null;
+                }
             }
             else if (e.Opcode == OpcodeEnum.Ping)
             {
@@ -133,7 +160,7 @@ namespace NetMQ.WebSockets
                 pong[1] = (byte)(e.Payload.Length & 127);
                 Buffer.BlockCopy(e.Payload, 0, pong, 2, e.Payload.Length);
 
-                m_streamSocket.SendMore(Identity.Data, Identity.Size, true);
+                m_streamSocket.SendMore(Identity, Identity.Length, true);
                 m_streamSocket.Send(pong);
             }
         }
@@ -225,7 +252,7 @@ namespace NetMQ.WebSockets
 
             try
             {
-                m_streamSocket.SendMore(Identity.Data, Identity.Data.Length, dontWait);
+                m_streamSocket.SendMore(Identity, Identity.Length, dontWait);
                 m_streamSocket.Send(frame, frame.Length, dontWait);
 
                 return true;
@@ -239,12 +266,12 @@ namespace NetMQ.WebSockets
                 m_state = WebSocketClientState.Closed;
                 throw exception;
             }
-        }       
+        }
 
         public void Close()
         {
             // TODO: send close message     
-            m_streamSocket.Send(Identity.Data, Identity.Data.Length, true, true);
+            m_streamSocket.Send(Identity, Identity.Length, true, true);
             m_streamSocket.Send("");
 
             m_state = WebSocketClientState.Closed;
