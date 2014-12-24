@@ -32,8 +32,8 @@ using (NetMQContext context = NetMQContext.Create())
 
         router.ReceiveReady += (sender, eventArgs) =>
         {
-            string identity = eventArgs.WSSocket.Receive();
-            string message = eventArgs.WSSocket.Receive();
+            byte[] identity = eventArgs.WSSocket.Receive();
+            string message = eventArgs.WSSocket.ReceiveString();
 
             // let the webbrowser know we got the message
             eventArgs.WSSocket.SendMore(identity).Send("OK");
@@ -43,13 +43,8 @@ using (NetMQContext context = NetMQContext.Create())
         };
             
         Poller poller = new Poller();
-        poller.AddWSSocket(router);
+        poller.AddSocket(router);
 
-        // we must add the publisher to the poller although we are not registering to any event.
-        // the protocol processing is happening in the user thread, without adding the publisher to the poller
-        // the next time the publisher will accept a socket or receive a subscription is only when send is called.
-        // when socket is added to the poller the processing is happen everytime data is ready to be processed
-        poller.AddWSSocket(publisher);
         poller.Start();
 
     }
