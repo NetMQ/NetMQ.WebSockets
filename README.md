@@ -39,7 +39,7 @@ using (NetMQContext context = NetMQContext.Create())
             eventArgs.WSSocket.SendMore(identity).Send("OK");
 
             // the topic is "chat" and than we send the message
-            eventArgs.WSSocket.SendMore("chat").Send(message);
+            publisher.SendMore("chat").Send(message);
         };
             
         Poller poller = new Poller();
