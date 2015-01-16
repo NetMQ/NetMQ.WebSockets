@@ -10,12 +10,12 @@ Hopefully in the near future the library will be integrated into NetMQ as anothe
 Currently only the router and publisher patterns are implemented and you can only bind the socket.
 
 You are probably asking yourselves, "If I can only bind the socket, then how can one connect to the socket?"
-That's where [JSMQ](https://github.com/somdoron/JSMQ) comes into play. JSMQ is ZeroMQ/NetMQ javascript client which connect and talk to the NetMQ.WebSockets, over WebSockets off course.
+That's where [JSMQ](https://github.com/zeromq/JSMQ) comes into play. JSMQ is ZeroMQ/NetMQ javascript client which connect and talk to the NetMQ.WebSockets, over WebSockets off course.
 
 To install NetMQ.WebSockets, search for it on [nuget](https://www.nuget.org/packages/NetMQ.WebSockets/) and make sure to choose "Include Prerelease".
 
 
-To install JSMQ you can dowload the JSMQ.JS file from [JSMQ github page](https://github.com/somdoron/JSMQ) or from [nuget](https://www.nuget.org/packages/JSMQ/) as well, just search JSMQ.
+To install JSMQ you can dowload the JSMQ.JS file from [JSMQ github page](https://github.com/zeromq/JSMQ) or from [nuget](https://www.nuget.org/packages/JSMQ/) as well, just search JSMQ.
 
 This is early beta and not ready for production use, but don't let that stop you from trying it out, giving feedback, or even better sending a pull request.
 
