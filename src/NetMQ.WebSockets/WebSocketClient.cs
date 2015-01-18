@@ -180,7 +180,7 @@ namespace NetMQ.WebSockets
             if (!lines.Any(l => l.Trim().Equals("Upgrade: websocket", StringComparison.OrdinalIgnoreCase)))
                 return false;
 
-            if (!lines.Any(l => l.Trim().Equals("Connection: Upgrade", StringComparison.OrdinalIgnoreCase)))
+            if (!lines.Any(l => { var lt = l.Trim(); return lt.StartsWith("Connection: ", StringComparison.OrdinalIgnoreCase) && lt.Split(new char[]{',', ':'}).Any(p => p.Trim().Equals("Upgrade", StringComparison.OrdinalIgnoreCase)); }))
                 return false;
 
             if (!lines.Any(l => l.Trim().Equals("Sec-WebSocket-Version: 13", StringComparison.OrdinalIgnoreCase)))
