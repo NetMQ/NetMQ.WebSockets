@@ -72,9 +72,19 @@ namespace NetMQ.WebSockets
             }
         }
 
+        public void Receive(ref Msg msg, SendReceiveOptions options)
+        {
+            m_messagesPipe.Receive(ref msg, options);
+        }
+
         public bool TryReceive(ref Msg msg, TimeSpan timeout)
         {
             return m_messagesPipe.TryReceive(ref msg, timeout);
+        }
+
+        public void Send(ref Msg msg, SendReceiveOptions options)
+        {
+            m_messagesPipe.Send(ref msg, options);
         }
 
         public bool TrySend(ref Msg msg, TimeSpan timeout, bool more)
