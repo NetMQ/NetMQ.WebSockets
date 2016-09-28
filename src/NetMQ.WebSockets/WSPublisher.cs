@@ -2,8 +2,6 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using NetMQ.Actors;
-using NetMQ.zmq;
 
 namespace NetMQ.WebSockets
 {
@@ -27,7 +25,7 @@ namespace NetMQ.WebSockets
                 {
                     PublisherShimHandler self = (PublisherShimHandler)arg;
 
-                    Utils.Swap(self.m_identities, IndexOf(self.m_identities, pipe), self.m_matching);
+                    self.m_identities.Swap(IndexOf(self.m_identities, pipe), self.m_matching);
                     self.m_matching++;
                 };
 
@@ -52,8 +50,8 @@ namespace NetMQ.WebSockets
             }
             
 
-            public PublisherShimHandler(NetMQContext context)
-                : base(context)
+            public PublisherShimHandler(int id)
+                : base(id)
             {
                 m_identities = new List<byte[]>();
                 m_subscriptions = new Mtrie();
@@ -114,7 +112,7 @@ namespace NetMQ.WebSockets
             }
         }
 
-        public WSPublisher(NetMQContext context) : base(context, new PublisherShimHandler(context))
+        public WSPublisher() : base(id => new PublisherShimHandler(id))
         {
         }
     }

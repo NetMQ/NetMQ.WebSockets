@@ -7,7 +7,6 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
 using NetMQ.Sockets;
-using NetMQ.zmq;
 
 namespace NetMQ.WebSockets
 {
@@ -62,7 +61,7 @@ namespace NetMQ.WebSockets
             {
                 case WebSocketClientState.Closed:
                     m_state = WebSocketClientState.Handshake;
-                    string clientHandshake = m_streamSocket.ReceiveString();
+                    string clientHandshake = m_streamSocket.ReceiveFrameString();
 
                     string[] lines = clientHandshake.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
 
@@ -74,16 +73,21 @@ namespace NetMQ.WebSockets
 
                         try
                         {
-                            m_streamSocket.SendMore(Identity, Identity.Length, true);
-                            m_streamSocket.Send("HTTP/1.1 101 Switching Protocols\r\n" +
-                                                "Upgrade: websocket\r\n" +
-                                                "Connection: Upgrade\r\n" +
-                                                "Sec-WebSocket-Accept: " + acceptKey + "\r\n" +
-                                                "Sec-WebSocket-Protocol: WSNetMQ\r\n\r\n");
-
-                            m_decoder = new Decoder();
-                            m_decoder.Message += OnMessage;
-                            m_state = WebSocketClientState.Ready;
+                            if (m_streamSocket.TrySendFrame(Identity, Identity.Length, true) &&
+                                m_streamSocket.TrySendFrame("HTTP/1.1 101 Switching Protocols\r\n" +
+                                                            "Upgrade: websocket\r\n" +
+                                                            "Connection: Upgrade\r\n" +
+                                                            "Sec-WebSocket-Accept: " + acceptKey + "\r\n" +
+                                                            "Sec-WebSocket-Protocol: WSNetMQ\r\n\r\n"))
+                            {
+                                m_decoder = new Decoder();
+                                m_decoder.Message += OnMessage;
+                                m_state = WebSocketClientState.Ready;
+                            }
+                            else
+                            {
+                                m_state = WebSocketClientState.Closed;
+                            }                            
                         }
                         catch (NetMQException)
                         {
@@ -94,24 +98,17 @@ namespace NetMQ.WebSockets
                     {
                         m_state = WebSocketClientState.Closed;
 
-                        try
-                        {
-                            m_streamSocket.SendMore(Identity, Identity.Length, true);
-                            m_streamSocket.Send("HTTP/1.1 400 Bad Request\r\nSec-WebSocket-Version: 13\r\n");
+                        if (m_streamSocket.TrySendFrame(Identity, Identity.Length, true))
+                            m_streamSocket.TrySendFrame("HTTP/1.1 400 Bad Request\r\nSec-WebSocket-Version: 13\r\n");
 
-                            // invalid request, close the socket and raise closed event
-                            m_streamSocket.SendMore(Identity, Identity.Length, true);
-                            m_streamSocket.Send("");
-                        }
-                        catch (NetMQException ex)
-                        {
-
-                        }
+                        // invalid request, close the socket and raise closed event
+                        if (m_streamSocket.TrySendFrame(Identity, Identity.Length, true))                            
+                            m_streamSocket.TrySendFrame("");                                                                        
                     }
 
                     break;
                 case WebSocketClientState.Ready:
-                    byte[] message = m_streamSocket.Receive();
+                    byte[] message = m_streamSocket.ReceiveFrameBytes();
                     m_decoder.Process(message);
                     break;
                 default:
@@ -126,8 +123,8 @@ namespace NetMQ.WebSockets
                 // send close command to the socket
                 try
                 {
-                    m_streamSocket.SendMore(Identity, Identity.Length, true);
-                    m_streamSocket.Send("");
+                    if (m_streamSocket.TrySendFrame(Identity, Identity.Length, true))
+                        m_streamSocket.TrySendFrame("");
                 }
                 catch (NetMQException)
                 {
@@ -160,8 +157,8 @@ namespace NetMQ.WebSockets
                 pong[1] = (byte)(e.Payload.Length & 127);
                 Buffer.BlockCopy(e.Payload, 0, pong, 2, e.Payload.Length);
 
-                m_streamSocket.SendMore(Identity, Identity.Length, true);
-                m_streamSocket.Send(pong);
+                if (m_streamSocket.TrySendFrame(Identity, Identity.Length, true))
+                    m_streamSocket.TrySendFrame(pong);
             }
         }
 
@@ -252,15 +249,19 @@ namespace NetMQ.WebSockets
 
             try
             {
-                m_streamSocket.SendMore(Identity, Identity.Length, dontWait);
-                m_streamSocket.Send(frame, frame.Length, dontWait);
+                if (dontWait)
+                {
+                    return m_streamSocket.TrySendFrame(Identity, Identity.Length, true) &&
+                           m_streamSocket.TrySendFrame(frame, frame.Length);
+                }
+                else
+                {
+                    m_streamSocket.SendMoreFrame(Identity, Identity.Length);
+                    m_streamSocket.SendFrame(frame, frame.Length);
 
-                return true;
-            }
-            catch (AgainException againException)
-            {
-                return false;
-            }
+                    return true;
+                }                                         
+            }            
             catch (NetMQException exception)
             {
                 m_state = WebSocketClientState.Closed;
@@ -271,8 +272,8 @@ namespace NetMQ.WebSockets
         public void Close()
         {
             // TODO: send close message     
-            m_streamSocket.Send(Identity, Identity.Length, true, true);
-            m_streamSocket.Send("");
+            if (m_streamSocket.TrySendFrame(Identity, Identity.Length, true))
+                m_streamSocket.TrySendFrame("");
 
             m_state = WebSocketClientState.Closed;
         }

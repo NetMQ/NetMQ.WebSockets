@@ -5,7 +5,6 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using NetMQ.zmq;
 using NUnit.Framework;
 using WebSocket4Net;
 
@@ -17,28 +16,25 @@ namespace NetMQ.WebSockets.Tests
         [Test]
         public void PingPong()
         {
-            using (NetMQContext context = NetMQContext.Create())
+            using (WebSocket4Net.WebSocket webSocket = new WebSocket("ws://localhost:82", "WSNetMQ"))
             {
-                using (WebSocket4Net.WebSocket webSocket = new WebSocket("ws://localhost:82", "WSNetMQ"))
+                webSocket.EnableAutoSendPing = true;
+                webSocket.AutoSendPingInterval = 1; // one second
+
+                using (WSRouter router = new WSRouter())
                 {
-                    webSocket.EnableAutoSendPing = true;
-                    webSocket.AutoSendPingInterval = 1; // one second
+                    router.Bind("ws://localhost:82");
 
-                    using (WSRouter router = context.CreateWSRouter())
-                    {
-                        router.Bind("ws://localhost:82");
+                    ManualResetEvent manualResetEvent = new ManualResetEvent(false);
+                    webSocket.Opened += (sender, args) => manualResetEvent.Set();
 
-                        ManualResetEvent manualResetEvent = new ManualResetEvent(false);
-                        webSocket.Opened += (sender, args) => manualResetEvent.Set();
+                    webSocket.Open();
+                    webSocket.Error += (sender, args) => Console.WriteLine("Error");
+                    manualResetEvent.WaitOne();
 
-                        webSocket.Open();
-                        webSocket.Error += (sender, args) => Console.WriteLine("Error");
-                        manualResetEvent.WaitOne();
+                    Thread.Sleep(5000);
 
-                        Thread.Sleep(5000);
-
-                        Assert.AreEqual(webSocket.State, WebSocketState.Open);
-                    }
+                    Assert.AreEqual(webSocket.State, WebSocketState.Open);
                 }
             }
         }
@@ -46,52 +42,49 @@ namespace NetMQ.WebSockets.Tests
         [Test]
         public void RequestReply()
         {
-            using (NetMQContext context = NetMQContext.Create())
+            using (WebSocket4Net.WebSocket webSocket = new WebSocket("ws://localhost:82", "WSNetMQ"))
             {
-                using (WebSocket4Net.WebSocket webSocket = new WebSocket("ws://localhost:82", "WSNetMQ"))
-                {          
 
-                    using (WSRouter router = context.CreateWSRouter())
+                using (WSRouter router = new WSRouter())
+                {
+                    router.Bind("ws://localhost:82");
+
+                    ManualResetEvent manualResetEvent = new ManualResetEvent(false);
+                    webSocket.Opened += (sender, args) => manualResetEvent.Set();
+
+                    webSocket.Open();
+                    webSocket.Error += (sender, args) => Console.WriteLine("Error");
+                    manualResetEvent.WaitOne();
+
+                    Assert.AreEqual(webSocket.State, WebSocketState.Open);
+
+                    byte[] message = new byte[2];
+                    message[0] = 0;
+                    message[1] = (byte)'H';
+
+                    // should exit the router thread
+                    webSocket.Send(message, 0, message.Length);
+
+                    byte[] identity = router.ReceiveFrameBytes();
+                    string msg = router.ReceiveFrameString();
+
+                    Assert.AreEqual("H", msg);
+
+                    byte[] receivedMessage = null;
+                    manualResetEvent.Reset();
+
+                    webSocket.DataReceived += (sender, args) =>
                     {
-                        router.Bind("ws://localhost:82");
+                        receivedMessage = args.Data;
+                        manualResetEvent.Set();
+                    };
 
-                        ManualResetEvent manualResetEvent = new ManualResetEvent(false);
-                        webSocket.Opened += (sender, args) => manualResetEvent.Set();
+                    router.SendMoreFrame(identity).SendFrame("W");
 
-                        webSocket.Open();
-                        webSocket.Error += (sender, args) => Console.WriteLine("Error");
-                        manualResetEvent.WaitOne();                        
+                    Assert.IsTrue(manualResetEvent.WaitOne(1000));
 
-                        Assert.AreEqual(webSocket.State, WebSocketState.Open);
-
-                        byte[] message = new byte[2];
-                        message[0] = 0;
-                        message[1] = (byte)'H';
-                        
-                        // should exit the router thread
-                        webSocket.Send(message, 0, message.Length);
-
-                        byte[] identity = router.Receive();
-                        string msg = router.ReceiveString();
-
-                        Assert.AreEqual("H", msg);
-
-                        byte[] receivedMessage = null;
-                        manualResetEvent.Reset();
-
-                        webSocket.DataReceived += (sender, args) =>
-                        {
-                            receivedMessage = args.Data;
-                            manualResetEvent.Set();                            
-                        };
-
-                        router.SendMore(identity).Send("W");
-
-                        Assert.IsTrue(manualResetEvent.WaitOne(1000));
-
-                        Assert.AreEqual(0 ,receivedMessage[0]);
-                        Assert.AreEqual('W', receivedMessage[1]);
-                    }
+                    Assert.AreEqual(0, receivedMessage[0]);
+                    Assert.AreEqual('W', receivedMessage[1]);
                 }
             }
         }

@@ -2,36 +2,27 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using NetMQ.Actors;
-using NetMQ.InProcActors;
 using NetMQ.Sockets;
-using NetMQ.zmq;
 
 namespace NetMQ.WebSockets
 {
-    abstract class BaseShimHandler : IShimHandler<int>
+    abstract class BaseShimHandler : IShimHandler
     {
-        private readonly NetMQContext m_context;
         private int m_id;
 
         private PairSocket m_messagesPipe;
         private StreamSocket m_stream;
 
-        private Poller m_poller;
+        private NetMQPoller m_poller;
 
         private Dictionary<byte[], WebSocketClient> m_clients;
 
-        public BaseShimHandler(NetMQContext context)
-        {
-            m_context = context;            
+        public BaseShimHandler(int id)
+        {                                    
+            m_id = id;
 
             m_clients = new Dictionary<byte[], WebSocketClient>(new ByteArrayEqualityComparer());
-        }
-
-        public void Initialise(int state)
-        {
-            m_id = state;
-        }
+        }        
 
         protected abstract void OnOutgoingMessage(NetMQMessage message);
         protected abstract void OnIncomingMessage(byte[] identity, NetMQMessage message);
@@ -43,44 +34,47 @@ namespace NetMQ.WebSockets
         {
             var outgoingData = Encode(message, more);
 
-            m_stream.SendMore(identity).Send(outgoingData);
+            m_stream.SendMoreFrame(identity).SendFrame(outgoingData);
         }
 
         protected void WriteIngoing(NetMQMessage message)
         {
-            m_messagesPipe.SendMessage(message);
-        }
+            m_messagesPipe.SendMultipartMessage(message);
+        }        
 
-        public void RunPipeline(PairSocket shim)
+        public void Run(PairSocket shim)
         {
             shim.SignalOK();
 
             shim.ReceiveReady += OnShimReady;
 
-            m_messagesPipe = m_context.CreatePairSocket();
+            m_messagesPipe = new PairSocket();
             m_messagesPipe.Connect(string.Format("inproc://wsrouter-{0}", m_id));
             m_messagesPipe.ReceiveReady += OnMessagePipeReady;
 
-            m_stream = m_context.CreateStreamSocket();
+            m_stream = new StreamSocket();
             m_stream.ReceiveReady += OnStreamReady;
 
-            m_poller = new Poller(m_messagesPipe, shim, m_stream);
+            m_poller = new NetMQPoller();
+            m_poller.Add(m_messagesPipe);
+            m_poller.Add(shim);
+            m_poller.Add(m_stream);
 
             m_messagesPipe.SignalOK();
 
-            m_poller.Start();
+            m_poller.Run();
 
             m_messagesPipe.Dispose();
             m_stream.Dispose();
-        }
+        }        
 
         private void OnShimReady(object sender, NetMQSocketEventArgs e)
         {
-            string command = e.Socket.ReceiveString();
+            string command = e.Socket.ReceiveFrameString();
 
             if (command == WSSocket.BindCommand)
             {
-                string address = e.Socket.ReceiveString();
+                string address = e.Socket.ReceiveFrameString();
 
                 int errorCode = 0;
 
@@ -94,17 +88,17 @@ namespace NetMQ.WebSockets
                 }
 
                 byte[] bytes = BitConverter.GetBytes(errorCode);
-                e.Socket.Send(bytes);
+                e.Socket.SendFrame(bytes);
             }
-            else if (command == ActorKnownMessages.END_PIPE)
+            else if (command == NetMQActor.EndShimMessage)
             {
-                m_poller.Stop(false);
+                m_poller.Stop();
             }
         }
 
         private void OnStreamReady(object sender, NetMQSocketEventArgs e)
         {
-            byte[] identity = m_stream.Receive();
+            byte[] identity = m_stream.ReceiveFrameBytes();
 
             WebSocketClient client;
 
@@ -134,7 +128,7 @@ namespace NetMQ.WebSockets
 
         private void OnMessagePipeReady(object sender, NetMQSocketEventArgs e)
         {
-            NetMQMessage request = m_messagesPipe.ReceiveMessage();
+            NetMQMessage request = m_messagesPipe.ReceiveMultipartMessage();
             
             OnOutgoingMessage(request);          
         }
