@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Text;
-using NetMQ.zmq;
 
 namespace NetMQ.WebSockets
 {
@@ -116,7 +115,7 @@ namespace NetMQ.WebSockets
 
         private Mtrie[] Realloc(Mtrie[] table, int size, bool ended)
         {
-            return Utils.Realloc(table, size, ended);
+            return table.Resize(size, ended);
         }
 
         //  Remove all subscriptions for a specific peer from the trie.
@@ -142,7 +141,7 @@ namespace NetMQ.WebSockets
             if (buffsize >= maxbuffsize)
             {
                 maxbuffsize = buffsize + 256;
-                buff = Utils.Realloc(buff, maxbuffsize);
+                Array.Resize(ref buff, maxbuffsize);
             }
 
             //  If there are no subnodes in the trie, return.

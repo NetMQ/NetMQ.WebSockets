@@ -4,10 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using NetMQ.Actors;
-using NetMQ.InProcActors;
 using NetMQ.Sockets;
-using NetMQ.zmq;
 
 namespace NetMQ.WebSockets
 {
@@ -15,8 +12,8 @@ namespace NetMQ.WebSockets
     {
         class RouterShimHandler : BaseShimHandler
         {
-            public RouterShimHandler(NetMQContext context)
-                : base(context)
+            public RouterShimHandler(int id)
+                : base(id)
             {
             }
 
@@ -52,8 +49,8 @@ namespace NetMQ.WebSockets
             }
         }
 
-        public WSRouter(NetMQContext context)
-            : base(context, new RouterShimHandler(context))
+        public WSRouter()
+            : base(id => new RouterShimHandler(id))
         {
         }
     }
