@@ -72,9 +72,14 @@ namespace NetMQ.WebSockets
             }
         }
 
-        public void Receive(ref Msg msg, SendReceiveOptions options)
+        public string ReceiveFrameString()
         {
-            m_messagesPipe.Receive(ref msg, options);
+            return m_messagesPipe.ReceiveFrameString();
+        }
+
+        public byte[] ReceiveFrameBytes()
+        {
+            return m_messagesPipe.ReceiveFrameBytes();
         }
 
         public bool TryReceive(ref Msg msg, TimeSpan timeout)
@@ -82,9 +87,14 @@ namespace NetMQ.WebSockets
             return m_messagesPipe.TryReceive(ref msg, timeout);
         }
 
-        public void Send(ref Msg msg, SendReceiveOptions options)
+        public void SendFrame(byte[] frame, bool more)
         {
-            m_messagesPipe.Send(ref msg, options);
+            m_messagesPipe.SendFrame(frame, more);
+        }
+
+        public void SendMoreFrame(byte[] frame)
+        {
+            m_messagesPipe.SendMoreFrame(frame);
         }
 
         public bool TrySend(ref Msg msg, TimeSpan timeout, bool more)

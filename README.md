@@ -22,32 +22,32 @@ This is early beta and not ready for production use, but don't let that stop you
 Without further adieu, following is a small chat example:
 
 ```csharp
-using (NetMQContext context = NetMQContext.Create())
+using (WSRouter router = new WSRouter())
+using (WSPublisher publisher = new WSPublisher())
 {
-    using (WSRouter router = context.CreateWSRouter())
-    using (WSPublisher publisher = context.CreateWSPublisher())
+    router.Bind("ws://localhost:80");
+    publisher.Bind("ws://localhost:81");
+
+    router.ReceiveReady += (sender, eventArgs) =>
     {
-        router.Bind("ws://localhost:80");                    
-        publisher.Bind("ws://localhost:81");
+        byte[] identity = router.ReceiveFrameBytes();
+        string message = router.ReceiveFrameString();
 
-        router.ReceiveReady += (sender, eventArgs) =>
-        {
-            byte[] identity = eventArgs.WSSocket.Receive();
-            string message = eventArgs.WSSocket.ReceiveString();
+        router.SendMoreFrame(identity);
+        router.SendFrame("OK");
 
-            // let the webbrowser know we got the message
-            eventArgs.WSSocket.SendMore(identity).Send("OK");
-
-            // the topic is "chat" and than we send the message
-            publisher.SendMore("chat").Send(message);
-        };
+        publisher.SendMoreFrame("chat");
+        publisher.SendFrame(message);
+    };
             
-        Poller poller = new Poller();
-        poller.AddSocket(router);
+    NetMQPoller poller = new NetMQPoller();
+    poller.Add(router);
 
-        poller.Start();
+    // we must add the publisher to the poller although we are not registering to any event.
+    // The internal stream socket handle connections and subscriptions and use the events internally
+    poller.Add(publisher);
+    poller.Run();
 
-    }
 }
 ```
 
