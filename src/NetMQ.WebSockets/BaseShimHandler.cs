@@ -34,7 +34,8 @@ namespace NetMQ.WebSockets
         {
             var outgoingData = Encode(message, more);
 
-            m_stream.SendMoreFrame(identity).SendFrame(outgoingData);
+            m_stream.SendMoreFrame(identity);
+            m_stream.SendFrame(outgoingData);
         }
 
         protected void WriteIngoing(NetMQMessage message)
@@ -100,9 +101,8 @@ namespace NetMQ.WebSockets
         {
             byte[] identity = m_stream.ReceiveFrameBytes();
 
-            WebSocketClient client;
 
-            if (!m_clients.TryGetValue(identity, out client))
+            if (!m_clients.TryGetValue(identity, out WebSocketClient client))
             {
                 client = new WebSocketClient(m_stream, identity);
                 client.IncomingMessage += OnIncomingMessage;

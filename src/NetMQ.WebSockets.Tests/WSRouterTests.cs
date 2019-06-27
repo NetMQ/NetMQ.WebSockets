@@ -79,7 +79,8 @@ namespace NetMQ.WebSockets.Tests
                         manualResetEvent.Set();
                     };
 
-                    router.SendMoreFrame(identity).SendFrame("W");
+                    router.SendMoreFrame(identity);
+                    router.SendFrame("W");
 
                     Assert.IsTrue(manualResetEvent.WaitOne(1000));
 

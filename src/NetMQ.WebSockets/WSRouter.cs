@@ -40,7 +40,7 @@ namespace NetMQ.WebSockets
 
             protected override void OnNewClient(byte[] identity)
             {
-             
+                
             }
 
             protected override void OnClientRemoved(byte[] identity)
